@@ -6,15 +6,15 @@ public class RNReceiver implements Receiver
 
 	public static void main(String[] args)
 	{
-		int sourceadr = 0;
-		int destadr = 0;
-		int empfangsfenster = 0;
+		short sourceadr = 0;
+		short destadr = 0;
+		short empfangsfenster = 0;
 
 		try
 		{
-			sourceadr = Integer.parseInt(args[0]);
-			destadr = Integer.parseInt(args[1]);
-			empfangsfenster = Integer.parseInt(args[2]);
+			sourceadr = Short.parseShort(args[0]);
+			destadr = Short.parseShort(args[1]);
+			empfangsfenster = Short.parseShort(args[2]);
 		} catch (NumberFormatException exc)
 		{
 			exc.printStackTrace();
@@ -24,7 +24,7 @@ public class RNReceiver implements Receiver
 		new RNReceiver(sourceadr, destadr, empfangsfenster);
 	}
 
-	public RNReceiver(int sourceadr, int destadr, int empfangsfenster)
+	public RNReceiver(short sourceadr, short destadr, short empfangsfenster)
 	{
 		try
 		{

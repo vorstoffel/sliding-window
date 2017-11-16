@@ -1,3 +1,4 @@
+import java.nio.ByteBuffer;
 import rn.TestData;
 
 public class Frame
@@ -7,10 +8,12 @@ public class Frame
 	private byte[] sourceAdr;
 	private byte[] destAdr;
 	private byte[] sequNr;
-	private byte[] flags; // is this really useful with byte[]? 1.+2. bit hold information
+	private byte[] flags;
 	private byte[] checksum;
 	private byte[] payloadLength;
 	private TestData testData;
+	boolean ack;
+	boolean term;
 
 	public byte[] getSourceAdr()
 	{
@@ -55,29 +58,57 @@ public class Frame
 		return rawFrame;
 	}
 
-	// Konstruktor, der ein empfangenes byte[] zerlegt
+	// Konstruktor, der ein empfangenes byte[] frame zerlegt
 	public Frame(byte[] rawFrame)
 	{
 		// byte sowieso aus rawFrame = sourceAdr;
 		// ...
 	}
 
-	// Konstruktor, der ein byte[] Frame baut
-	public Frame(String sourceadr, String destadr, TestData testData)
+	// Konstruktor fuer ACK-Rahmen
+	public Frame(String sourceadr, String destadr, short sequNr, boolean term)
+	{
+		// TODO: restlichen frame Inhalt einfuegen
+
+		if (term == true)
+		{
+			this.flags = ByteBuffer.allocate(2).putShort((short) 3).array();
+		} else
+		{
+			this.flags = ByteBuffer.allocate(2).putShort((short) 1).array();
+		}
+	}
+
+	// Konstruktor fuer Daten-Rahmen
+	public Frame(String sourceadr, String destadr, short sequNr, TestData testData, boolean term)
 	{
 		this.sourceAdr = sourceadr.getBytes();
 		this.destAdr = destadr.getBytes();
+		this.sequNr = ByteBuffer.allocate(2).putShort(sequNr).array(); // int to byte[]
+
+		if (term == true) // fuer flags
+		{
+			this.flags = ByteBuffer.allocate(2).putShort((short) 2).array();
+		} else
+		{
+			this.flags = ByteBuffer.allocate(2).putShort((short) 0).array();
+		}
+
 		this.testData = testData;
 	}
 
 	// befüllt das byte array frame
 	public byte[] CreateFrame(byte[] payload)
 	{
-		// byte[] frame = add(sourceAdr, destAdr);
-		// frame = add(frame, payload);
+		byte[] frame = add(sourceAdr, destAdr);
+		frame = add(frame, sequNr);
+		frame = add(frame, flags);
+		// frame = add(frame, checksum);
+		// frame = add(frame, payloadLength);
+		frame = add(frame, payload);
 
-		// return frame;
-		return payload; // um zu testen ob versch. Saetze gesendet werden
+		return frame;
+		// return payload; // um zu testen ob versch. Saetze gesendet werden
 	}
 
 	public byte[] add(byte[] ar1, byte[] ar2)

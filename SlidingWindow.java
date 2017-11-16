@@ -8,27 +8,28 @@ public class SlidingWindow
 
 	// enthaelt alle relevanten Frames fuers Sendefenster (FIFO)
 	private LinkedList<Frame> frameBuffer = new LinkedList<>();
+	private short sequNr = 0; // sequence number
 
 	public SlidingWindow(NetworkCard nwcard)
 	{
 		this.nwcard = nwcard;
 	}
 
-	public void send(Frame myFrame, TestData testData)
+	public void send(String sourceadr, String destadr, short sendefenster, TestData testData)
 	{
 		try
 		{
 			byte[] payload = testData.getTestData(); // Testdaten beschaffen
-			byte[] frame;
 
 			while (payload != null) // ganzen Testsatz senden
 			{
-				frame = myFrame.CreateFrame(payload);
+				boolean term = false; // terminierungs frames senden?
+				Frame myFrame = new Frame(sourceadr, destadr, sequNr, testData, term); // Frame instanziieren
+				byte[] frame = myFrame.CreateFrame(payload);
 
-				System.out.print("Send Frame (");
-				System.out.print(frame.length + " bytes: ");
+				System.out.print("Send Frame (" + frame.length + " bytes: ");
 
-				for (int j = 0; j < Math.min(10, frame.length); j++)
+				for (int j = 0; j < Math.min(15, frame.length); j++) // 10
 				// for (int j = 0; j < frame.length; j++) // print full frame
 				{
 					System.out.print(String.format("%02x ", frame[j]));
@@ -36,6 +37,7 @@ public class SlidingWindow
 				System.out.println("...)");
 
 				nwcard.send(frame);
+				frameBuffer.add(myFrame); // add frame to buffer
 
 				Thread.sleep(500); // etwas warten
 				payload = testData.getTestData(); // Testdaten beschaffen

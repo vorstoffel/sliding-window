@@ -9,12 +9,13 @@ public class RNSender implements Receiver
 	{
 		String sourceadr = args[0];
 		String destadr = args[1];
-		String sendefenster = args[2];
-		int testdatenNr = 0;
+		short sendefenster = 0;
+		short testdatenNr = 0;
 
 		try
 		{
-			testdatenNr = Integer.parseInt(args[3]);
+			sendefenster = Short.parseShort(args[2]);
+			testdatenNr = Short.parseShort(args[3]);
 		} catch (NumberFormatException exc)
 		{
 			exc.printStackTrace();
@@ -23,17 +24,14 @@ public class RNSender implements Receiver
 		new RNSender(sourceadr, destadr, sendefenster, testdatenNr);
 	}
 
-	public RNSender(String sourceadr, String destadr, String sendefenster, int testdatenNr)
+	public RNSender(String sourceadr, String destadr, short sendefenster, short testdatenNr)
 	{
 		try
 		{
 			NetworkCard nwcard = new NetworkCard(this); // Netzwerkkarte instanziieren
 			TestData testData = TestData.createTestData(testdatenNr); // Testdaten instanziieren
-
 			this.sw = new SlidingWindow(nwcard); // SlidingWindow instanziieren
-			Frame myFrame = new Frame(sourceadr, destadr, testData); // Frame instanziieren
-
-			sw.send(myFrame, testData);
+			sw.send(sourceadr, destadr, sendefenster, testData);
 
 		} catch (Exception e)
 		{
