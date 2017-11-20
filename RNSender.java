@@ -7,13 +7,15 @@ public class RNSender implements Receiver
 	// Auch der Sender muss empfangen koennen (minds. die Quittungen)
 	public static void main(String[] args)
 	{
-		String sourceadr = args[0];
-		String destadr = args[1];
+		short sourceadr = 0;
+		short destadr = 0;
 		short sendefenster = 0;
 		short testdatenNr = 0;
 
 		try
 		{
+			sourceadr = Short.parseShort(args[0]);
+			destadr = Short.parseShort(args[1]);
 			sendefenster = Short.parseShort(args[2]);
 			testdatenNr = Short.parseShort(args[3]);
 		} catch (NumberFormatException exc)
@@ -24,7 +26,7 @@ public class RNSender implements Receiver
 		new RNSender(sourceadr, destadr, sendefenster, testdatenNr);
 	}
 
-	public RNSender(String sourceadr, String destadr, short sendefenster, short testdatenNr)
+	public RNSender(short sourceadr, short destadr, short sendefenster, short testdatenNr)
 	{
 		try
 		{
@@ -41,9 +43,8 @@ public class RNSender implements Receiver
 
 	public void receive(byte[] frame)
 	{
+		// RNSender muss ACKs empfangen koennen
 		sw.receive(frame);
-		// Der Sender bekommt nie eine Antwort, wenn doch, das ausgeben
-		System.out.print("Sender unexpectedly received frame (" + frame.length + " bytes)");
 	}
 
 }

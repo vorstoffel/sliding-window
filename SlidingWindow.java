@@ -15,7 +15,7 @@ public class SlidingWindow
 		this.nwcard = nwcard;
 	}
 
-	public void send(String sourceadr, String destadr, short sendefenster, TestData testData)
+	public void send(short sourceadr, short destadr, short sendefenster, TestData testData)
 	{
 		try
 		{
@@ -24,19 +24,19 @@ public class SlidingWindow
 			while (payload != null) // ganzen Testsatz senden
 			{
 				boolean term = false; // terminierungs frames senden?
-				Frame myFrame = new Frame(sourceadr, destadr, sequNr, testData, term); // Frame instanziieren
-				byte[] frame = myFrame.CreateFrame(payload);
+				Frame myFrame = new Frame(sourceadr, destadr, sequNr, payload, term); // Frame instanziieren
+				sequNr++;
+				System.out
+						.print("Send Frame " + myFrame.getSequNr() + " (" + myFrame.getRawFrame().length + " bytes: ");
 
-				System.out.print("Send Frame (" + frame.length + " bytes: ");
-
-				for (int j = 0; j < Math.min(15, frame.length); j++) // 10
+				for (int j = 0; j < Math.min(15, myFrame.getRawFrame().length); j++) // 10
 				// for (int j = 0; j < frame.length; j++) // print full frame
 				{
-					System.out.print(String.format("%02x ", frame[j]));
+					System.out.print(String.format("%02x ", myFrame.getPayload()[j]));
 				}
 				System.out.println("...)");
 
-				nwcard.send(frame);
+				nwcard.send(myFrame.getRawFrame());
 				frameBuffer.add(myFrame); // add frame to buffer
 
 				Thread.sleep(500); // etwas warten
@@ -51,10 +51,13 @@ public class SlidingWindow
 
 	public void receive(byte[] frame)
 	{
+		Frame myFrame = new Frame(frame);
+
 		// Empfangene Frames ausgeben
-		System.out.print("Received frame (" + frame.length + " bytes: ");
+		System.out.print("Received frame " + myFrame.getSequNr() + " (" + frame.length + " bytes: ");
 		for (int i = 0; i < Math.min(10, frame.length); i++)
 			System.out.print(String.format("%02x ", frame[i]));
 		System.out.println("...)");
+		// TODO: for each frame -> send ACK
 	}
 }

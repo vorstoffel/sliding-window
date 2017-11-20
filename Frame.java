@@ -3,112 +3,129 @@ import rn.TestData;
 
 public class Frame
 {
-	// 16 Bit: sourceadr, destadr, sequenceNumber, Flags, Checksum, PayloadLength
-	// Beliebige Bit: Payload, Checksum
-	private byte[] sourceAdr;
-	private byte[] destAdr;
-	private byte[] sequNr;
-	private byte[] flags;
-	private byte[] checksum;
-	private byte[] payloadLength;
-	private TestData testData;
+	// 16 Bit: sourceadr, destadr, sequenceNumber, Flags, Checksum, PayloadLength,
+	// Checksum
+	// Beliebige Bit: Payload
+	private short sourceAdr; // 2 Byte groß
+	private short destAdr; // 2 Byte groß
+	private short sequNr; // 2 Byte groß
+	private short flags; // 2 Byte groß
+	private short checksum; // 2 Byte groß
+	private short payloadLength; // 2 Byte groß
+	private byte[] payload; // beliebig viele Bits
+
+	private byte[] rawFrame; // besteht aus allen obigen Daten
 	boolean ack;
 	boolean term;
 
-	public byte[] getSourceAdr()
+	public short getSourceAdr()
 	{
 		return sourceAdr;
 	}
 
-	public byte[] getDestAdr()
+	public short getDestAdr()
 	{
 		return destAdr;
 	}
 
-	public byte[] getSequNr()
+	public short getSequNr()
 	{
 		return sequNr;
 	}
 
-	public byte[] getFlags()
+	public short getFlags()
 	{
 		return flags;
 	}
 
-	public byte[] getChecksum()
+	public short getChecksum()
 	{
 		return checksum;
 	}
 
-	public byte[] getPayloadLength()
+	public short getPayloadLength()
 	{
 		return payloadLength;
 	}
 
-	public TestData getFrameData()
+	public byte[] getPayload()
 	{
-		return testData;
+		return payload;
 	}
 
 	// RawFrame == ByteArray wie es im Netzwerk übertragen wird
 	public byte[] getRawFrame()
 	{
-		byte[] rawFrame = new byte[0];
-		// gibt das frame als byte array zurück
 		return rawFrame;
 	}
 
-	// Konstruktor, der ein empfangenes byte[] frame zerlegt
+	// Konstruktor fuer empfangene byte[] frames
 	public Frame(byte[] rawFrame)
 	{
-		// byte sowieso aus rawFrame = sourceAdr;
-		// ...
+		ByteBuffer bb = ByteBuffer.allocate(rawFrame.length).put(rawFrame);
+		bb.position(0);
+		this.sourceAdr = bb.getShort();
+		this.destAdr = bb.getShort();
+		this.sequNr = bb.getShort();
+		this.flags = bb.getShort();
+		this.checksum = bb.getShort();
+		this.payloadLength = bb.getShort();
+
+		// TODO: restliche Positionen im ByteBuffer sind der Payload
+		// ~ this.payload = bb.getBytes.array();
 	}
 
 	// Konstruktor fuer ACK-Rahmen
-	public Frame(String sourceadr, String destadr, short sequNr, boolean term)
+	public Frame(short sourceadr, short destadr, short sequNr, boolean term)
 	{
 		// TODO: restlichen frame Inhalt einfuegen
 
 		if (term == true)
 		{
-			this.flags = ByteBuffer.allocate(2).putShort((short) 3).array();
+			this.flags = 3;
 		} else
 		{
-			this.flags = ByteBuffer.allocate(2).putShort((short) 1).array();
+			this.flags = 1;
 		}
 	}
 
 	// Konstruktor fuer Daten-Rahmen
-	public Frame(String sourceadr, String destadr, short sequNr, TestData testData, boolean term)
+	public Frame(short sourceadr, short destadr, short sequNr, byte[] payload, boolean term)
 	{
-		this.sourceAdr = sourceadr.getBytes();
-		this.destAdr = destadr.getBytes();
-		this.sequNr = ByteBuffer.allocate(2).putShort(sequNr).array(); // int to byte[]
+		this.sourceAdr = sourceadr;
+		this.destAdr = destadr;
+		this.sequNr = sequNr;
 
-		if (term == true) // fuer flags
+		if (term == true)
 		{
-			this.flags = ByteBuffer.allocate(2).putShort((short) 2).array();
+			this.flags = 2;
 		} else
 		{
-			this.flags = ByteBuffer.allocate(2).putShort((short) 0).array();
+			this.flags = 0;
 		}
+		this.checksum = createChecksum();
+		this.payloadLength = (short) payload.length;
+		this.payload = payload;
 
-		this.testData = testData;
+		this.rawFrame = createFrame();
 	}
 
-	// befüllt das byte array frame
-	public byte[] CreateFrame(byte[] payload)
+	public byte[] shortToBytes(short s)
 	{
-		byte[] frame = add(sourceAdr, destAdr);
-		frame = add(frame, sequNr);
-		frame = add(frame, flags);
-		// frame = add(frame, checksum);
-		// frame = add(frame, payloadLength);
-		frame = add(frame, payload);
+		byte[] b = ByteBuffer.allocate(2).putShort(s).array();
+		return b;
+	}
 
+	// erzeugt das byte array fuer rawFrame
+	public byte[] createFrame()
+	{
+		byte[] frame = add(shortToBytes(sourceAdr), shortToBytes(destAdr));
+		frame = add(frame, shortToBytes(sequNr));
+		frame = add(frame, shortToBytes(flags));
+		frame = add(frame, shortToBytes(checksum));
+		frame = add(frame, shortToBytes(payloadLength));
+		frame = add(frame, payload);
 		return frame;
-		// return payload; // um zu testen ob versch. Saetze gesendet werden
 	}
 
 	public byte[] add(byte[] ar1, byte[] ar2)
@@ -130,12 +147,22 @@ public class Frame
 		return all;
 	}
 
-	public byte[] CreateChecksum(byte[] frame)
+	public short createChecksum()
 	{
-		// ...
-		byte[] checksum = new byte[0];
-		// ...
+		// TODO: checksum berechnen
 
+		// alle shorts addieren
+
+		// short = 65536 bit
+
+		short checksum = 0;
 		return checksum;
+	}
+
+	public boolean isChecksumCorrekt()
+	{
+		// TODO: Checksum ueberpruefen
+		Boolean b = true;
+		return b;
 	}
 }

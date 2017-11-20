@@ -20,7 +20,6 @@ public class RNReceiver implements Receiver
 			exc.printStackTrace();
 		}
 
-		// System.out.println("Params: " + args[0] + ", " + args[1] + ", " + args[2]);
 		new RNReceiver(sourceadr, destadr, empfangsfenster);
 	}
 
