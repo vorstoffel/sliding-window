@@ -25,6 +25,7 @@ public class SlidingWindow
 			{
 				boolean term = false; // terminierungs frames senden?
 				Frame myFrame = new Frame(sourceadr, destadr, sequNr, payload, term); // Frame instanziieren
+
 				sequNr++;
 				System.out
 						.print("Send Frame " + myFrame.getSequNr() + " (" + myFrame.getRawFrame().length + " bytes: ");

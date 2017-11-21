@@ -103,9 +103,10 @@ public class Frame
 		{
 			this.flags = 0;
 		}
-		this.checksum = createChecksum();
+
 		this.payloadLength = (short) payload.length;
 		this.payload = payload;
+		this.checksum = createChecksum();
 
 		this.rawFrame = createFrame();
 	}
@@ -149,13 +150,28 @@ public class Frame
 
 	public short createChecksum()
 	{
-		// TODO: checksum berechnen
+		// TODO: rausfinden ob richtig errechnet wird
+		ByteBuffer bb = ByteBuffer.allocate(payload.length);
+		bb.put(payload);
+		bb.position(0);
+		short sPayload = bb.getShort();
 
-		// alle shorts addieren
+		int sum = sourceAdr + destAdr + sequNr + flags + payloadLength + sPayload; // alle shorts addieren
+		short max = Short.MAX_VALUE; // (short) 65536; // Maxwert + 1
+		int div = 0;
+		int rest = sum;
+		while (max < rest)
+		{
+			rest = rest - max;
+			div++;
+		}
 
-		// short = 65536 bit
+		// Einerkomplementsumme
+		short einerkomp = (short) (rest + div);
 
-		short checksum = 0;
+		// Einerkomplement
+		max--;
+		short checksum = (short) (max - einerkomp);
 		return checksum;
 	}
 
