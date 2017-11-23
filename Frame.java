@@ -1,22 +1,20 @@
 import java.nio.ByteBuffer;
-import rn.TestData;
 
 public class Frame
 {
-	// 16 Bit: sourceadr, destadr, sequenceNumber, Flags, Checksum, PayloadLength,
-	// Checksum
-	// Beliebige Bit: Payload
-	private short sourceAdr; // 2 Byte groß
-	private short destAdr; // 2 Byte groß
-	private short sequNr; // 2 Byte groß
-	private short flags; // 2 Byte groß
-	private short checksum; // 2 Byte groß
-	private short payloadLength; // 2 Byte groß
-	private byte[] payload; // beliebig viele Bits
+	// 16 Bit: 2 Byte groß:
+	private short sourceAdr;
+	private short destAdr;
+	private short sequNr;
+	private short flags;
+	private short checksum;
+	private short payloadLength;
+	// quasi beliebig viele Bits:
+	private byte[] payload;
 
 	private byte[] rawFrame; // besteht aus allen obigen Daten
-	boolean ack;
-	boolean term;
+	boolean ack; // zeigt an, ob Frame ein ACK ist
+	boolean term; // zeigt an, ob Frame ein Terminierungsframe ist
 
 	public short getSourceAdr()
 	{
@@ -53,7 +51,7 @@ public class Frame
 		return payload;
 	}
 
-	// RawFrame == ByteArray wie es im Netzwerk übertragen wird
+	// RawFrame == Byte array wie es im System uebertragen wird
 	public byte[] getRawFrame()
 	{
 		return rawFrame;
@@ -78,15 +76,21 @@ public class Frame
 	// Konstruktor fuer ACK-Rahmen
 	public Frame(short sourceadr, short destadr, short sequNr, boolean term)
 	{
-		// TODO: restlichen frame Inhalt einfuegen
+		this.sourceAdr = sourceadr;
+		this.destAdr = destadr;
+		this.sequNr = sequNr;
 
-		if (term == true)
+		if (term == true) // ack fuer ACK-Rahmen immer true
 		{
 			this.flags = 3;
 		} else
 		{
 			this.flags = 1;
 		}
+
+		// TODO: payload + payloadLength einfuegen
+		this.checksum = createChecksum();
+		this.rawFrame = createFrame();
 	}
 
 	// Konstruktor fuer Daten-Rahmen
@@ -96,7 +100,7 @@ public class Frame
 		this.destAdr = destadr;
 		this.sequNr = sequNr;
 
-		if (term == true)
+		if (term == true) // ack fuer ACK-Rahmen immer false
 		{
 			this.flags = 2;
 		} else
@@ -106,15 +110,9 @@ public class Frame
 
 		this.payloadLength = (short) payload.length;
 		this.payload = payload;
+		// immer zuletzt, da greift auf Datenfelder der Klasse zurueck
 		this.checksum = createChecksum();
-
 		this.rawFrame = createFrame();
-	}
-
-	public byte[] shortToBytes(short s)
-	{
-		byte[] b = ByteBuffer.allocate(2).putShort(s).array();
-		return b;
 	}
 
 	// erzeugt das byte array fuer rawFrame
@@ -129,6 +127,13 @@ public class Frame
 		return frame;
 	}
 
+	public byte[] shortToBytes(short s)
+	{
+		byte[] b = ByteBuffer.allocate(2).putShort(s).array();
+		return b;
+	}
+
+	// adds one byte array to another
 	public byte[] add(byte[] ar1, byte[] ar2)
 	{
 		int length1 = ar1.length;
@@ -150,35 +155,47 @@ public class Frame
 
 	public short createChecksum()
 	{
-		// TODO: rausfinden ob richtig errechnet wird
-		ByteBuffer bb = ByteBuffer.allocate(payload.length);
-		bb.put(payload);
-		bb.position(0);
-		short sPayload = bb.getShort();
+		ByteBuffer bb = ByteBuffer.allocate(payload.length % 2 == 0 ? payload.length : payload.length + 1);
+		bb.put(payload); // Bufferposition ist am Ende
 
-		int sum = sourceAdr + destAdr + sequNr + flags + payloadLength + sPayload; // alle shorts addieren
-		short max = Short.MAX_VALUE; // (short) 65536; // Maxwert + 1
+		int iPayload = 0;
+		if (payload.length % 2 != 0)
+		{
+			bb.put((byte) 0);
+		}
+		bb.position(0);
+		for (int i = 0; i < payload.length / 2; i++)
+		{
+			iPayload += 0xffff & bb.getShort(); // durch Verundung mit 0xffff wird der short zu int
+		}
+
+		int sum = sourceAdr + destAdr + sequNr + flags + payloadLength + iPayload;
+
+		int max = 65536; // Maxwert von 16 Bit + 1
 		int div = 0;
 		int rest = sum;
-		while (max < rest)
+		while (max <= rest)
 		{
 			rest = rest - max;
 			div++;
 		}
 
-		// Einerkomplementsumme
-		short einerkomp = (short) (rest + div);
-
-		// Einerkomplement
+		// Einerkomplementsumme (Ueberlauf addieren)
+		int einerkomp = rest + div;
+		// Einerkomplement (Bits umdrehen)
 		max--;
-		short checksum = (short) (max - einerkomp);
-		return checksum;
+		int checksum = max - einerkomp;
+		return (short) checksum;
 	}
 
 	public boolean isChecksumCorrekt()
 	{
-		// TODO: Checksum ueberpruefen
-		Boolean b = true;
-		return b;
+		if (createChecksum() == getChecksum())
+		{
+			return true;
+		} else
+		{
+			return false;
+		}
 	}
 }
