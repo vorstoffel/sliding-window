@@ -36,6 +36,16 @@ public class Frame
 		return flags;
 	}
 
+	public boolean getAck()
+	{
+		return ack;
+	}
+
+	public boolean getTerm()
+	{
+		return term;
+	}
+
 	public short getChecksum()
 	{
 		return checksum;
@@ -66,15 +76,18 @@ public class Frame
 		this.destAdr = bb.getShort();
 		this.sequNr = bb.getShort();
 		this.flags = bb.getShort();
+		fillInAckAndTerm();
 		this.checksum = bb.getShort();
 		this.payloadLength = bb.getShort();
 
-		// TODO: restliche Positionen im ByteBuffer sind der Payload
-		// ~ this.payload = bb.getBytes.array();
+		// restliche Positionen im ByteBuffer sind der Payload
+		this.payload = new byte[bb.remaining()];
+		// System.out.println("Testausgabe: " + sourceAdr + ", " + destAdr + ", " +
+		// sequNr);
 	}
 
-	// Konstruktor fuer ACK-Rahmen
-	public Frame(short sourceadr, short destadr, short sequNr, boolean term)
+	// Konstruktor fuer ACK-Rahmen (receiver) und Terminierungsrahmen (sender)
+	public Frame(short sourceadr, short destadr, short sequNr, boolean term, boolean ack)
 	{
 		this.sourceAdr = sourceadr;
 		this.destAdr = destadr;
@@ -82,31 +95,33 @@ public class Frame
 
 		if (term == true) // ack fuer ACK-Rahmen immer true
 		{
-			this.flags = 3;
+			if (ack == true)
+				this.flags = 2;
+			else
+				this.flags = 3;
 		} else
 		{
-			this.flags = 1;
+			if (ack == true)
+				this.flags = 0;
+			else
+				this.flags = 1;
 		}
+		fillInAckAndTerm();
 
-		// TODO: payload + payloadLength einfuegen
+		this.payloadLength = 0;
+		this.payload = null;
 		this.checksum = createChecksum();
 		this.rawFrame = createFrame();
 	}
 
-	// Konstruktor fuer Daten-Rahmen
-	public Frame(short sourceadr, short destadr, short sequNr, byte[] payload, boolean term)
+	// Konstruktor fuer Daten-Rahmen (sender)
+	public Frame(short sourceadr, short destadr, short sequNr, byte[] payload)
 	{
 		this.sourceAdr = sourceadr;
 		this.destAdr = destadr;
 		this.sequNr = sequNr;
-
-		if (term == true) // ack fuer ACK-Rahmen immer false
-		{
-			this.flags = 2;
-		} else
-		{
-			this.flags = 0;
-		}
+		this.flags = 0;
+		fillInAckAndTerm();
 
 		this.payloadLength = (short) payload.length;
 		this.payload = payload;
@@ -123,7 +138,8 @@ public class Frame
 		frame = add(frame, shortToBytes(flags));
 		frame = add(frame, shortToBytes(checksum));
 		frame = add(frame, shortToBytes(payloadLength));
-		frame = add(frame, payload);
+		if (payload != null)
+			frame = add(frame, payload);
 		return frame;
 	}
 
@@ -153,23 +169,51 @@ public class Frame
 		return all;
 	}
 
+	public void fillInAckAndTerm()
+	{
+		if (this.flags == 0)
+		{
+			this.ack = false;
+			this.term = false;
+		} else if (this.flags == 1)
+		{
+			this.ack = true;
+			this.term = false;
+		} else if (this.flags == 2)
+		{
+			this.ack = false;
+			this.term = true;
+		} else
+		{
+			this.ack = true;
+			this.term = true;
+		}
+	}
+
 	public short createChecksum()
 	{
-		ByteBuffer bb = ByteBuffer.allocate(payload.length % 2 == 0 ? payload.length : payload.length + 1);
-		bb.put(payload); // Bufferposition ist am Ende
-
-		int iPayload = 0;
-		if (payload.length % 2 != 0)
+		int sum = 0;
+		if (payload != null) // Bei Terminierungsrahmen und ACKs ist payload null
 		{
-			bb.put((byte) 0);
-		}
-		bb.position(0);
-		for (int i = 0; i < payload.length / 2; i++)
-		{
-			iPayload += 0xffff & bb.getShort(); // durch Verundung mit 0xffff wird der short zu int
-		}
+			ByteBuffer bb = ByteBuffer.allocate(payload.length % 2 == 0 ? payload.length : payload.length + 1);
+			bb.put(payload); // Bufferposition ist am Ende
 
-		int sum = sourceAdr + destAdr + sequNr + flags + payloadLength + iPayload;
+			int iPayload = 0;
+			if (payload.length % 2 != 0)
+			{
+				bb.put((byte) 0);
+			}
+			bb.position(0);
+			for (int i = 0; i < payload.length / 2; i++)
+			{
+				iPayload += 0xffff & bb.getShort(); // durch Verundung mit 0xffff wird der short zu int
+			}
+
+			sum = sourceAdr + destAdr + sequNr + flags + payloadLength + iPayload;
+		} else
+		{
+			sum = sourceAdr + destAdr + sequNr + flags + payloadLength;
+		}
 
 		int max = 65536; // Maxwert von 16 Bit + 1
 		int div = 0;

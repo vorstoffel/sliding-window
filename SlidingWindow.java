@@ -15,6 +15,7 @@ public class SlidingWindow
 		this.nwcard = nwcard;
 	}
 
+	// Sendemethode fuer Datenrahmen
 	public void send(short sourceadr, short destadr, short sendefenster, TestData testData)
 	{
 		try
@@ -23,10 +24,8 @@ public class SlidingWindow
 
 			while (payload != null) // ganzen Testsatz senden
 			{
-				boolean term = false;
-				Frame myFrame = new Frame(sourceadr, destadr, sequNr, payload, term); // Frame instanziieren
+				Frame myFrame = new Frame(sourceadr, destadr, sequNr, payload); // Frame instanziieren
 				sequNr++;
-
 				System.out.println("Sended frame " + sequNr);
 
 				/*
@@ -41,9 +40,27 @@ public class SlidingWindow
 				nwcard.send(myFrame.getRawFrame());
 				frameBuffer.add(myFrame); // add frame to buffer
 
-				Thread.sleep(500); // etwas warten
+				Thread.sleep(10); // 500); // etwas warten
 				payload = testData.getTestData(); // Testdaten beschaffen
 			}
+			Frame myFrame = new Frame(sourceadr, destadr, sequNr, true, false);
+			nwcard.send(myFrame.getRawFrame());
+
+			System.exit(0);
+		} catch (Exception e)
+		{
+			System.out.println(e);
+		}
+	}
+
+	// Sendemethode fuer ACK-Rahmen
+	public void send(short sourceadr, short destadr, short flags)
+	{
+		try
+		{
+			Frame myFrame = new Frame(sourceadr, destadr, sequNr, true, false);
+			nwcard.send(myFrame.getRawFrame());
+
 			System.exit(0);
 		} catch (Exception e)
 		{
@@ -53,14 +70,22 @@ public class SlidingWindow
 
 	public void receive(byte[] frame)
 	{
-		// TODO: FIRST: Frame(byte[] frame); SECOND: for each frame -> send ACK
-		Frame recFrame = new Frame(frame);
+		// fix NullpointerException & for each frame -> send ACK
 
-		// if (recFrame.getRawFrame().length > 12 && recFrame.isChecksumCorrekt() ==
-		// true)
-		System.out.println("Received frame " + recFrame.getSequNr());
-		// else
-		// System.out.println("Frame error");
+		if (frame.length >= 12)
+		{ // && recFrame.isChecksumCorrekt() == true)
+			Frame recFrame = new Frame(frame);
+
+			if (recFrame.getAck() == false)
+				System.out.println("Received frame " + recFrame.getSequNr());
+			else if (recFrame.getAck() == true)
+				if (recFrame.getTerm() == false)
+					System.out.println("Received ACK " + recFrame.getSequNr());
+				else
+					System.out.println("Received Term ACK " + recFrame.getSequNr());
+
+		} else
+			System.out.println("Frame error");
 
 		/*
 		 * System.out.print("Received frame " + myFrame.getSequNr() + " (" +
