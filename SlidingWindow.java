@@ -1,5 +1,4 @@
 import java.util.LinkedList;
-
 import rn.*;
 
 public class SlidingWindow
@@ -18,15 +17,21 @@ public class SlidingWindow
 	// Sendemethode fuer Datenrahmen
 	public void send(short sourceadr, short destadr, short sendefenster, TestData testData)
 	{
+		// TODO: sendefenster beachten, auf ACK warten
 		try
 		{
 			byte[] payload = testData.getTestData(); // Testdaten beschaffen
 
 			while (payload != null) // ganzen Testsatz senden
 			{
-				Frame myFrame = new Frame(sourceadr, destadr, sequNr, payload); // Frame instanziieren
+				Frame senFrame = new Frame(sourceadr, destadr, sequNr, payload); // Frame instanziieren
 				sequNr++;
-				System.out.println("Sended frame " + sequNr);
+				System.out.println("Sended frame " + senFrame.getSequNr());
+
+				// System.out.println(senFrame);
+
+				// for (int j = 0; j < senFrame.getPayloadLength(); j++)
+				// System.out.print(String.format("%02x ", senFrame.getRawFrame()[j]));
 
 				/*
 				 * System.out .print("Send Frame " + myFrame.getSequNr() + " (" +
@@ -37,14 +42,16 @@ public class SlidingWindow
 				 * System.out.print(String.format("%02x ", myFrame.getPayload()[j])); }
 				 * System.out.println("...)");
 				 */
-				nwcard.send(myFrame.getRawFrame());
-				frameBuffer.add(myFrame); // add frame to buffer
+
+				nwcard.send(senFrame.getRawFrame());
+				frameBuffer.add(senFrame); // add frame to buffer
 
 				Thread.sleep(10); // 500); // etwas warten
 				payload = testData.getTestData(); // Testdaten beschaffen
 			}
-			Frame myFrame = new Frame(sourceadr, destadr, sequNr, true, false);
-			nwcard.send(myFrame.getRawFrame());
+			Frame lastFrame = new Frame(sourceadr, destadr, sequNr, true, false);
+			nwcard.send(lastFrame.getRawFrame());
+			System.out.println("Sended Term frame " + lastFrame.getSequNr());
 
 			System.exit(0);
 		} catch (Exception e)
@@ -54,14 +61,12 @@ public class SlidingWindow
 	}
 
 	// Sendemethode fuer ACK-Rahmen
-	public void send(short sourceadr, short destadr, short flags)
+	public void send(short sourceadr, short destadr, short sequNr, short flags)
 	{
 		try
 		{
 			Frame myFrame = new Frame(sourceadr, destadr, sequNr, true, false);
 			nwcard.send(myFrame.getRawFrame());
-
-			System.exit(0);
 		} catch (Exception e)
 		{
 			System.out.println(e);
@@ -70,28 +75,34 @@ public class SlidingWindow
 
 	public void receive(byte[] frame)
 	{
-		// fix NullpointerException & for each frame -> send ACK
+		// TODO: for each data frame -> send ACK
 
 		if (frame.length >= 12)
-		{ // && recFrame.isChecksumCorrekt() == true)
+		{
 			Frame recFrame = new Frame(frame);
+			// System.out.println(recFrame);
 
-			if (recFrame.getAck() == false)
-				System.out.println("Received frame " + recFrame.getSequNr());
-			else if (recFrame.getAck() == true)
-				if (recFrame.getTerm() == false)
-					System.out.println("Received ACK " + recFrame.getSequNr());
-				else
-					System.out.println("Received Term ACK " + recFrame.getSequNr());
-
-		} else
-			System.out.println("Frame error");
-
-		/*
-		 * System.out.print("Received frame " + myFrame.getSequNr() + " (" +
-		 * frame.length + " bytes: "); for (int i = 0; i < Math.min(10, frame.length);
-		 * i++) System.out.print(String.format("%02x ", frame[i]));
-		 * System.out.println("...)");
-		 */
+			if (recFrame.isChecksumCorrekt() == true)
+			{
+				if (recFrame.getAck() == false)
+				{
+					if (recFrame.getTerm() == false)
+					{
+						System.out.println("Received dataframe " + recFrame.getSequNr());
+						send(recFrame.getSourceAdr(), recFrame.getDestAdr(), recFrame.getSequNr(), recFrame.getFlags());
+						System.out.println("Send ACK " + recFrame.getSequNr());
+					}
+				} else if (recFrame.getAck() == true)
+				{
+					if (recFrame.getTerm() == false)
+						System.out.println("Received ACK " + recFrame.getSequNr());
+					else
+						System.out.println("Received term ACK " + recFrame.getSequNr());
+				}
+			} else
+			{
+				System.out.println("Received frame " + recFrame.getSequNr() + " has incorrect checksum");
+			}
+		}
 	}
 }

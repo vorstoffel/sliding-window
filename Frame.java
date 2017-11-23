@@ -1,4 +1,5 @@
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 public class Frame
 {
@@ -67,10 +68,18 @@ public class Frame
 		return rawFrame;
 	}
 
+	@Override
+	public String toString()
+	{
+		return "Frame [sourceAdr=" + sourceAdr + ", destAdr=" + destAdr + ", sequNr=" + sequNr + ", flags=" + flags
+				+ ", checksum=" + checksum + ", payloadLength=" + payloadLength + ", payload="
+				+ Arrays.toString(payload) + "]";
+	}
+
 	// Konstruktor fuer empfangene byte[] frames
 	public Frame(byte[] rawFrame)
 	{
-		ByteBuffer bb = ByteBuffer.allocate(rawFrame.length).put(rawFrame);
+		ByteBuffer bb = ByteBuffer.wrap(rawFrame);
 		bb.position(0);
 		this.sourceAdr = bb.getShort();
 		this.destAdr = bb.getShort();
@@ -82,8 +91,11 @@ public class Frame
 
 		// restliche Positionen im ByteBuffer sind der Payload
 		this.payload = new byte[bb.remaining()];
-		// System.out.println("Testausgabe: " + sourceAdr + ", " + destAdr + ", " +
-		// sequNr);
+
+		for (int i = 0; i < payloadLength && i + 12 < rawFrame.length; i++)
+		{
+			payload[i] = bb.get(12 + i);
+		}
 	}
 
 	// Konstruktor fuer ACK-Rahmen (receiver) und Terminierungsrahmen (sender)
