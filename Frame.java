@@ -14,8 +14,6 @@ public class Frame
 	private byte[] payload;
 
 	private byte[] rawFrame; // besteht aus allen obigen Daten
-	boolean ack; // zeigt an, ob Frame ein ACK ist
-	boolean term; // zeigt an, ob Frame ein Terminierungsframe ist
 
 	public short getSourceAdr()
 	{
@@ -35,16 +33,6 @@ public class Frame
 	public short getFlags()
 	{
 		return flags;
-	}
-
-	public boolean getAck()
-	{
-		return ack;
-	}
-
-	public boolean getTerm()
-	{
-		return term;
 	}
 
 	public short getChecksum()
@@ -85,7 +73,6 @@ public class Frame
 		this.destAdr = bb.getShort();
 		this.sequNr = bb.getShort();
 		this.flags = bb.getShort();
-		fillInAckAndTerm();
 		this.checksum = bb.getShort();
 		this.payloadLength = bb.getShort();
 
@@ -105,20 +92,19 @@ public class Frame
 		this.destAdr = destadr;
 		this.sequNr = sequNr;
 
-		if (term == true) // ack fuer ACK-Rahmen immer true
+		if (term == false)
 		{
-			if (ack == true)
-				this.flags = 2;
-			else
-				this.flags = 3;
-		} else
-		{
-			if (ack == true)
+			if (ack == false)
 				this.flags = 0;
-			else
+			else if (ack == true)
 				this.flags = 1;
+		} else if (term == true)
+		{
+			if (ack == false)
+				this.flags = 2;
+			else if (ack == true)
+				this.flags = 3;
 		}
-		fillInAckAndTerm();
 
 		this.payloadLength = 0;
 		this.payload = null;
@@ -133,7 +119,6 @@ public class Frame
 		this.destAdr = destadr;
 		this.sequNr = sequNr;
 		this.flags = 0;
-		fillInAckAndTerm();
 
 		this.payloadLength = (short) payload.length;
 		this.payload = payload;
@@ -179,27 +164,6 @@ public class Frame
 			all[i] = ar2[i - length1];
 		}
 		return all;
-	}
-
-	public void fillInAckAndTerm()
-	{
-		if (this.flags == 0)
-		{
-			this.ack = false;
-			this.term = false;
-		} else if (this.flags == 1)
-		{
-			this.ack = true;
-			this.term = false;
-		} else if (this.flags == 2)
-		{
-			this.ack = false;
-			this.term = true;
-		} else
-		{
-			this.ack = true;
-			this.term = true;
-		}
 	}
 
 	public short createChecksum()

@@ -17,7 +17,7 @@ public class SlidingWindow
 	// Sendemethode fuer Datenrahmen
 	public void send(short sourceadr, short destadr, short sendefenster, TestData testData)
 	{
-		// TODO: sendefenster beachten, auf ACK warten
+		// TODO: sendefenster beachten, auf ACK warten, Timeout
 		try
 		{
 			byte[] payload = testData.getTestData(); // Testdaten beschaffen
@@ -51,9 +51,8 @@ public class SlidingWindow
 			}
 			Frame lastFrame = new Frame(sourceadr, destadr, sequNr, true, false);
 			nwcard.send(lastFrame.getRawFrame());
-			System.out.println("Sended Term frame " + lastFrame.getSequNr());
+			System.out.println("Sended term frame " + lastFrame.getSequNr());
 
-			System.exit(0);
 		} catch (Exception e)
 		{
 			System.out.println(e);
@@ -65,7 +64,7 @@ public class SlidingWindow
 	{
 		try
 		{
-			Frame myFrame = new Frame(sourceadr, destadr, sequNr, true, false);
+			Frame myFrame = new Frame(sourceadr, destadr, sequNr, false, true);
 			nwcard.send(myFrame.getRawFrame());
 		} catch (Exception e)
 		{
@@ -75,29 +74,28 @@ public class SlidingWindow
 
 	public void receive(byte[] frame)
 	{
-		// TODO: for each data frame -> send ACK
-
 		if (frame.length >= 12)
 		{
 			Frame recFrame = new Frame(frame);
-			// System.out.println(recFrame);
 
 			if (recFrame.isChecksumCorrekt() == true)
 			{
-				if (recFrame.getAck() == false)
+				if (recFrame.getFlags() == 0) // data, not terminating
 				{
-					if (recFrame.getTerm() == false)
-					{
-						System.out.println("Received dataframe " + recFrame.getSequNr());
-						send(recFrame.getSourceAdr(), recFrame.getDestAdr(), recFrame.getSequNr(), recFrame.getFlags());
-						System.out.println("Send ACK " + recFrame.getSequNr());
-					}
-				} else if (recFrame.getAck() == true)
+					System.out.println("Received dataframe " + recFrame.getSequNr());
+					send(recFrame.getSourceAdr(), recFrame.getDestAdr(), recFrame.getSequNr(), recFrame.getFlags());
+					System.out.println("Sended ack " + recFrame.getSequNr());
+				} else if (recFrame.getFlags() == 1) // ack, not terminating
 				{
-					if (recFrame.getTerm() == false)
-						System.out.println("Received ACK " + recFrame.getSequNr());
-					else
-						System.out.println("Received term ACK " + recFrame.getSequNr());
+					System.out.println("Received ack " + recFrame.getSequNr());
+				} else if (recFrame.getFlags() == 2) // data, terminating
+				{
+					System.out.println("Received terminating dataframe " + recFrame.getSequNr());
+
+				} else if (recFrame.getFlags() == 3) // ack, terminating
+				{
+					System.out.println("Received terminating ack " + recFrame.getSequNr());
+					System.exit(0);
 				}
 			} else
 			{
@@ -105,4 +103,5 @@ public class SlidingWindow
 			}
 		}
 	}
+
 }
