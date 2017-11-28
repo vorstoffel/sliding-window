@@ -29,7 +29,7 @@ public class RNReceiver implements Receiver
 		{
 			// Netzwerkkarte instanziieren, Empfang über receive(byte[] frame)
 			NetworkCard nwcard = new NetworkCard(this);
-			this.sw = new SlidingWindow(nwcard);
+			this.sw = new SlidingWindow(nwcard, sourceadr, destadr, empfangsfenster);
 
 		} catch (Exception e)
 		{

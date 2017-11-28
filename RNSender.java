@@ -32,8 +32,8 @@ public class RNSender implements Receiver
 		{
 			NetworkCard nwcard = new NetworkCard(this); // Netzwerkkarte instanziieren
 			TestData testData = TestData.createTestData(testdatenNr); // Testdaten instanziieren
-			this.sw = new SlidingWindow(nwcard); // SlidingWindow instanziieren
-			sw.send(sourceadr, destadr, sendefenster, testData);
+			this.sw = new SlidingWindow(nwcard, sourceadr, destadr, sendefenster, testData);
+			sw.send();
 
 		} catch (Exception e)
 		{
