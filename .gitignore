@@ -67,3 +67,5 @@ local.properties
 *.pdf
 .classpath
 .project
+
+*.out
