@@ -142,12 +142,13 @@ public class Frame
 
 		byte[] all = new byte[length1 + length2];
 
-		for (int i = 0; i < length1; i++)
+		int i = 0;
+		for (; i < length1; i++)
 		{
 			all[i] = ar1[i];
 		}
 
-		for (int i = length1; i < length1 + length2; i++)
+		for (; i < length1 + length2; i++)
 		{
 			all[i] = ar2[i - length1];
 		}
@@ -161,6 +162,12 @@ public class Frame
 		{
 			ByteBuffer bb = ByteBuffer.allocate(payload.length % 2 == 0 ? payload.length : payload.length + 1);
 			bb.put(payload); // Bufferposition ist am Ende
+
+			// Optimierung des Checksum Algorithmus
+			if (payload.length != payloadLength)
+			{
+				return Short.MIN_VALUE;
+			}
 
 			int iPayload = 0;
 			if (payload.length % 2 != 0)
