@@ -1,26 +1,33 @@
 import java.io.FileOutputStream;
-import java.util.LinkedList;
+import java.util.ArrayList;
+import java.util.concurrent.LinkedBlockingQueue;
+
 import rn.*;
 
 public class SlidingWindow
 {
 	private NetworkCard nwcard;
-	private LinkedList<Frame> frameBuffer = new LinkedList<>();
+	private LinkedBlockingQueue<Frame> sendBuffer = new LinkedBlockingQueue<>();
+	private volatile ArrayList<Frame> receiveBuffer = new ArrayList<>(100);
 	// Enthaelt alle relevanten Frames fuers Sendefenster (FIFO)
 	private short sequNr = 0; // sequence number
-	private boolean firstRec = true; // Zum testen, ob erstes empfangenes Frame richtig ist (sequNr = 0)
+	private volatile boolean firstRec = true; // Zum testen, ob erstes empfangenes Frame richtig ist (sequNr = 0)
 	private short sourceAdr;
 	private short destAdr;
 	private short sendefenster;
 	private TestData testData;
 	private volatile boolean stop = false;
-	private short lastACK; // Speichert SequNr vom letzten empfangenen ACK
+	private short lastReceivedACK = Short.MIN_VALUE; // relevant im Sender ;Speichert SequNr vom letzten empfangenen ACK
+	private short lastSentACK = -1; // relevant im Receiver
 	private boolean resend = false;
+	private StopThread stopThread;
 
 	public SlidingWindow(NetworkCard nwcard, short sourceAdr, short destAdr, short sendefenster, TestData testData)
 	{
 		this(nwcard, sourceAdr, destAdr, sendefenster);
 		this.testData = testData;
+		SendThread sendThread = new SendThread();
+		sendThread.start();
 	}
 
 	public SlidingWindow(NetworkCard nwcard, short sourceAdr, short destAdr, short sendefenster)
@@ -29,14 +36,14 @@ public class SlidingWindow
 		this.sourceAdr = sourceAdr;
 		this.destAdr = destAdr;
 		this.sendefenster = sendefenster;
-
-		SendThread senThread = new SendThread();
-		senThread.start();
 	}
 
 	// Sendemethode fuer Datenrahmen
 	public void send()
 	{
+		boolean sendTerm = false;
+		long timestamp = 0;
+
 		try
 		{
 			byte[] payload = testData.getTestData(); // Testdaten beschaffen
@@ -45,27 +52,46 @@ public class SlidingWindow
 			{
 				if (resend == true)
 				{
+					System.out.println("Resend");
+
 					sendAllInFrameBuffer();
 					resend = false;
 				}
 
-				if (frameBuffer.size() < sendefenster)
+				if (sendBuffer.size() < sendefenster)
 				{
-					Frame senFrame = new Frame(sourceAdr, destAdr, sequNr, payload); // Frame instanziieren
-					sequNr++;
-					System.out.println("Sended frame " + senFrame.getSequNr());
-
-					nwcard.send(senFrame.getRawFrame());
-					frameBuffer.add(senFrame); // Add frame to buffer
-
-					Thread.sleep(1000); // 500);
-					payload = testData.getTestData(); // Testdaten beschaffen
-
-					if (payload == null)
+					if (sendTerm)
 					{
-						Frame lastFrame = new Frame(sourceAdr, destAdr, sequNr, true, false);
+						if (System.currentTimeMillis() - timestamp >= 200)
+						{
+							sendTerm = false;
+						}
+						else
+						{
+							synchronized (this)
+							{
+								this.wait(50L);
+							}
+						}
+					}
+					else if (payload == null && !sendTerm)
+					{
+						Frame lastFrame = new Frame(sourceAdr, destAdr, sequNr, (short) 2);
 						nwcard.send(lastFrame.getRawFrame());
-						System.out.println("Sended term frame " + lastFrame.getSequNr());
+						System.out.println("Send term frame " + lastFrame.getSequNr());
+						timestamp = System.currentTimeMillis();
+						sendTerm = true;
+					}
+					else
+					{
+						Frame senFrame = new Frame(sourceAdr, destAdr, sequNr, payload); // Frame instanziieren
+						sequNr++;
+						System.out.println("Send frame " + senFrame.getSequNr());
+
+						nwcard.send(senFrame.getRawFrame());
+						sendBuffer.add(senFrame); // Add frame to buffer
+
+						payload = testData.getTestData(); // Testdaten beschaffen
 					}
 				}
 				else
@@ -75,7 +101,7 @@ public class SlidingWindow
 			}
 		} catch (Exception e)
 		{
-			System.out.println(e);
+			e.printStackTrace();
 		}
 	}
 
@@ -86,25 +112,32 @@ public class SlidingWindow
 		{
 			try
 			{
+				long timestamp = System.currentTimeMillis();
 				this.wait(200L);
+				// Hier kommt man hin, falls der Timeout stattfand (200ms)
+				if (System.currentTimeMillis() - timestamp >= 200)
+				{
+					System.out.println("Timeout, send again");
+					sendAllInFrameBuffer();
+				}
 			} catch (InterruptedException ie)
 			{
-				// Hier kommt man hin, falls der Timeout stattfand (200ms)
-				sendAllInFrameBuffer();
+				ie.printStackTrace();
 			}
 		}
 	}
 
 	public void sendAllInFrameBuffer()
 	{
-		for (Frame frame : frameBuffer)
+		for (Frame frame : sendBuffer)
 		{
 			try
 			{
 				nwcard.send(frame.getRawFrame());
+				System.out.println("Send again frame " + frame.getSequNr());
 			} catch (Exception e)
 			{
-				System.out.println(e);
+				e.printStackTrace();
 			}
 		}
 	}
@@ -114,27 +147,33 @@ public class SlidingWindow
 	{
 		try
 		{
-			Frame myFrame = new Frame(sourceadr, destadr, sequNr, false, true);
+			Frame myFrame = new Frame(sourceadr, destadr, sequNr, flags);
 			nwcard.send(myFrame.getRawFrame());
 		} catch (Exception e)
 		{
-			System.out.println(e);
+			e.printStackTrace();
 		}
 	}
 
 	public void receive(byte[] frame)
 	{
+		if (stopThread != null)
+		{
+			stopThread.stop();
+			stopThread = null;
+		}
 		if (frame.length >= 12)
 		{
 			Frame recFrame = new Frame(frame);
 			if (recFrame.isChecksumCorrekt() == true)
 			{
 				// Prueft ob source und destination adresse richtig sind
-				if (recFrame.getSourceAdr() == this.sourceAdr && recFrame.getDestAdr() == this.destAdr)
+				if (recFrame.getSourceAdr() == this.destAdr && recFrame.getDestAdr() == this.sourceAdr)
 				{
 					// Wenn neues ACK altem ACK entspricht muss neu gesendet werden
-					if (recFrame.getFlags() == 1 && recFrame.getSequNr() == lastACK)
+					if (recFrame.getFlags() == 1 && recFrame.getSequNr() == lastReceivedACK)
 					{
+						System.out.println("Received ACK " + lastReceivedACK);
 						resend = true;
 					}
 					else
@@ -145,22 +184,64 @@ public class SlidingWindow
 							firstRec = false;
 							if (recFrame.getFlags() == 0) // Data, not terminating
 							{
-								System.out.println("Received dataframe " + recFrame.getSequNr());
-								byteFileOutput(frame);
-								send(recFrame.getSourceAdr(), recFrame.getDestAdr(), recFrame.getSequNr(),
-										recFrame.getFlags());
-								System.out.println("Sended ack " + recFrame.getSequNr());
+								System.out.print("Received dataframe " + recFrame.getSequNr() + ", ");
+
+								if ((lastSentACK + 1) == recFrame.getSequNr())
+									lastSentACK = recFrame.getSequNr();
+
+								send(recFrame.getDestAdr(), recFrame.getSourceAdr(), lastSentACK, (short) 1);
+								System.out.print("send ACK " + lastSentACK);
+								System.out.println(" ");
+
+								// jedes Element durchgehen schauen ob es nächstgrößeres ist
+								boolean insertIt = false;
+								for (int i = 0; i < receiveBuffer.size(); i++)
+								{
+									if (receiveBuffer.get(i).getSequNr() > recFrame.getSequNr())
+									{
+										receiveBuffer.add(i, recFrame);
+										insertIt = true;
+										break;
+									}
+									else if (receiveBuffer.get(i).getSequNr() == recFrame.getSequNr())
+									{
+										insertIt = true;
+										break;
+									}
+								}
+								if (!insertIt)
+								{
+									receiveBuffer.add(recFrame);
+								}
+								if (receiveBuffer.size() > sendefenster)
+								{
+									Frame f = receiveBuffer.remove(0);
+									byteFileOutput(f.getPayload());
+
+									// TESTAUSGABE
+									bytesWritten += f.getPayload().length;
+
+								}
 							}
 							else if (recFrame.getFlags() == 1) // Ack, not terminating
 							{
-								System.out.println("Received ack " + recFrame.getSequNr());
+								System.out.println("Received ACK " + recFrame.getSequNr());
 								// Jeweiliges Element, was das erste ist, aus frameBuffer loeschen
-								if (frameBuffer.peekFirst().getSequNr() == recFrame.getSequNr())
-									frameBuffer.removeFirst();
-								else
-									System.out.println("Error: wrong ACK received");
-
-								lastACK = recFrame.getSequNr();
+								if (sendBuffer.peek() != null)
+								{
+									// alles kleiner des empfangenen ACKs rausnehmen
+									if (lastReceivedACK > recFrame.getSequNr())
+									{
+										System.out.println("Error: wrong ACK received");
+									}
+									else
+									{
+										while (sendBuffer.peek() != null
+												&& sendBuffer.peek().getSequNr() <= recFrame.getSequNr())
+											sendBuffer.poll();
+									}
+								}
+								lastReceivedACK = recFrame.getSequNr();
 
 								synchronized (this)
 								{
@@ -169,38 +250,58 @@ public class SlidingWindow
 							}
 							else if (recFrame.getFlags() == 2) // Data, terminating
 							{
-								System.out.println("Received terminating dataframe " + recFrame.getSequNr());
+								System.out.print("Received terminating dataframe " + recFrame.getSequNr());
+
+								if ((lastSentACK + 1) == recFrame.getSequNr())
+									lastSentACK = recFrame.getSequNr();
+
+								if (lastSentACK == recFrame.getSequNr())
+								{
+									send(recFrame.getDestAdr(), recFrame.getSourceAdr(), lastSentACK, (short) 3);
+									System.out.print(", send terminating ACK " + lastSentACK);
+								}
+								else
+								{
+									send(recFrame.getDestAdr(), recFrame.getSourceAdr(), lastSentACK, (short) 1);
+									System.out.print(", send ACK " + lastSentACK);
+								}
+								System.out.println(" ");
+
+								StopThread stopThread = new StopThread();
+								stopThread.start();
 							}
 							else if (recFrame.getFlags() == 3) // Ack, terminating
 							{
 								System.out.println("Received terminating ack " + recFrame.getSequNr());
 								// Jeweiliges Element, was das erste ist, aus frameBuffer loeschen
-								if (frameBuffer.peekFirst().getSequNr() == recFrame.getSequNr())
-									frameBuffer.removeFirst();
-								else
-									System.out.println("Error: wrong ACK received");
-
+								if (sendBuffer.peek() != null)
+								{
+									if (sendBuffer.peek().getSequNr() == recFrame.getSequNr())
+										sendBuffer.poll();
+									else
+										System.out.println("Error: wrong ACK received");
+								}
 								stop = true;
 
 								synchronized (this)
 								{
 									this.notifyAll();
 								}
-								// System.exit(0);
+								System.exit(0);
 							}
 						}
 						else if (firstRec == true && recFrame.getSequNr() != 0)
 						{
-							System.out.println("First frame: wrong sequence number");
-							send(recFrame.getSourceAdr(), recFrame.getDestAdr(), (short) -1, recFrame.getFlags());
-							System.out.println("Sended ack " + recFrame.getSequNr());
+							send(recFrame.getDestAdr(), recFrame.getSourceAdr(), (short) -1, (short) 1);
+							System.out.println("First frame: wrong sequence number, sent ACK -1");
+
 						}
 					}
 				}
 			}
 			else if (recFrame.isChecksumCorrekt() == false)
 			{
-				System.out.println("Received frame " + recFrame.getSequNr() + " has incorrect checksum");
+				System.out.println("Received frame with incorrect checksum");
 			}
 
 		}
@@ -216,15 +317,46 @@ public class SlidingWindow
 		}
 	}
 
+	int bytesWritten = 0;
+
+	private class StopThread extends Thread
+	{
+		@Override
+		public void run()
+		{
+			synchronized (this)
+			{
+				try
+				{
+
+					this.wait(1000L); // 1 Sekunde warten vor Beenden
+					for (Frame f : receiveBuffer)
+					{
+						// TESTAUSGABE
+						bytesWritten += f.getPayload().length;
+
+						byteFileOutput(f.getPayload());
+					}
+					System.out.println("total received bytes: " + bytesWritten);
+					System.exit(0);
+
+				} catch (InterruptedException e)
+				{
+					e.printStackTrace();
+				}
+			}
+		}
+	}
+
 	// Erstellt data.out und speichert jedes frame darin
-	public void byteFileOutput(byte[] frame)
+	public void byteFileOutput(byte[] payload)
 	{
 		FileOutputStream out;
 		try
 		{
 			// Haengt Daten am Ende dran (Achtung bei schon existierendem data.out!)
 			out = new FileOutputStream("data.out", true);
-			out.write(frame);
+			out.write(payload);
 			out.close();
 		} catch (Exception e)
 		{

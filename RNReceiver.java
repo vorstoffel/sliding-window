@@ -12,8 +12,8 @@ public class RNReceiver implements Receiver
 
 		try
 		{
-			sourceadr = Short.parseShort(args[0]);
-			destadr = Short.parseShort(args[1]);
+			sourceadr = Short.parseShort(args[1]);
+			destadr = Short.parseShort(args[0]);
 			empfangsfenster = Short.parseShort(args[2]);
 		} catch (NumberFormatException exc)
 		{

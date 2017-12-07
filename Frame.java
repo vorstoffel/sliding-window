@@ -83,29 +83,17 @@ public class Frame
 		{
 			payload[i] = bb.get(12 + i);
 		}
+
+		this.rawFrame = createFrame();
 	}
 
 	// Konstruktor fuer ACK-Rahmen (receiver) und Terminierungsrahmen (sender)
-	public Frame(short sourceadr, short destadr, short sequNr, boolean term, boolean ack)
+	public Frame(short sourceadr, short destadr, short sequNr, short flags)
 	{
 		this.sourceAdr = sourceadr;
 		this.destAdr = destadr;
 		this.sequNr = sequNr;
-
-		if (term == false)
-		{
-			if (ack == false)
-				this.flags = 0;
-			else if (ack == true)
-				this.flags = 1;
-		} else if (term == true)
-		{
-			if (ack == false)
-				this.flags = 2;
-			else if (ack == true)
-				this.flags = 3;
-		}
-
+		this.flags = flags;
 		this.payloadLength = 0;
 		this.payload = null;
 		this.checksum = createChecksum();
@@ -186,7 +174,8 @@ public class Frame
 			}
 
 			sum = sourceAdr + destAdr + sequNr + flags + payloadLength + iPayload;
-		} else
+		}
+		else
 		{
 			sum = sourceAdr + destAdr + sequNr + flags + payloadLength;
 		}
@@ -213,7 +202,8 @@ public class Frame
 		if (createChecksum() == getChecksum())
 		{
 			return true;
-		} else
+		}
+		else
 		{
 			return false;
 		}
